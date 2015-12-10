@@ -38,7 +38,27 @@ public abstract class BaseMappedQuery<T, ID> extends BaseMappedStatement<T, ID> 
 			colPosMap = columnPositions;
 		}
 
+		// Moodified by Joya (EDW)
+		// In the case of an object cache, first do an unsynchronized query and then a synchronized
+		// query and put if that fails.
 		ObjectCache objectCache = results.getObjectCache();
+		if (objectCache != null) {
+			Object id = idField.resultToJava(results, colPosMap);
+			T cachedInstance = objectCache.get(clazz, id);
+			if (cachedInstance != null) {
+				// if we have a cached instance for this id then return it
+				return cachedInstance;
+			}
+
+			synchronized (objectCache) {
+				return mapRow(results, colPosMap, objectCache);
+			}
+		} else {
+			return mapRow(results, colPosMap, null);
+		}
+	}
+
+	private T mapRow(DatabaseResults results, Map<String, Integer> colPosMap, ObjectCache objectCache) throws SQLException {
 		if (objectCache != null) {
 			Object id = idField.resultToJava(results, colPosMap);
 			T cachedInstance = objectCache.get(clazz, id);
